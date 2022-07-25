@@ -767,7 +767,7 @@ def _ingest_with_spark(
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
             created_spark_context = True
 
-        logger.debug("source type is!!!!", source=source, type_of=type(source))
+        logger.info("source type is!!!!", source=source, type_of=type(source))
 
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
@@ -779,7 +779,7 @@ def _ingest_with_spark(
         if featureset.spec.graph and featureset.spec.graph.steps:
             df = run_spark_graph(df, featureset, namespace, spark)
         _infer_from_static_df(df, featureset, options=infer_options)
-        logger.debug("df!!!!!!!", df=df, type_of=type(df))
+        logger.info("df!!!!!!!", df=df, type_of=type(df))
 
         key_columns = list(featureset.spec.entities.keys())
         timestamp_key = featureset.spec.timestamp_key
@@ -809,7 +809,7 @@ def _ingest_with_spark(
             )
 
             df_to_write = df
-            logger.debug("df_to_write!!!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
+            logger.info("df_to_write!!!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
 
             # If partitioning by time, add the necessary columns
             if timestamp_key and "partitionBy" in spark_options:
@@ -841,15 +841,15 @@ def _ingest_with_spark(
                             partition, op(timestamp_col)
                         )
             df_to_write = target.prepare_spark_df(df_to_write)
-            logger.debug("prepare_spark_df!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
+            logger.info("prepare_spark_df!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
             if overwrite:
                 df_to_write.write.mode("overwrite").save(**spark_options)
-                logger.debug("if overwrite!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
+                logger.info("if overwrite!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
             else:
                 # appending an empty dataframe may cause an empty file to be created (e.g. when writing to parquet)
                 # we would like to avoid that
                 df_to_write.persist()
-                logger.debug("after persist!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
+                logger.info("after persist!!!!!", df_to_write=df_to_write, type_of=type(df_to_write))
                 if len(df_to_write) > 0:
                     df_to_write.write.mode("append").save(**spark_options)
             target.set_resource(featureset)
