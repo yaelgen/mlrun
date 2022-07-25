@@ -767,6 +767,8 @@ def _ingest_with_spark(
             spark = pyspark.sql.SparkSession.builder.appName(session_name).getOrCreate()
             created_spark_context = True
 
+        logger.debug("source type is!!!!", source=source, type_of=type(source))
+
         if isinstance(source, pd.DataFrame):
             df = spark.createDataFrame(source)
         elif isinstance(source, pyspark.sql.DataFrame):
