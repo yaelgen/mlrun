@@ -198,6 +198,9 @@ class BaseRuntime(ModelObj):
     def _get_k8s(self):
         return get_k8s_helper()
 
+    def set_annotation(self, key, value):
+        self.metadata.annotations[key] = str(value)
+
     def set_label(self, key, value):
         self.metadata.labels[key] = str(value)
         return self
