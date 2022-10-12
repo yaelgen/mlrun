@@ -202,6 +202,12 @@ class TestKubejobRuntime(TestRuntimeBase):
         pod = self._get_pod_creation_args()
         assert pod.spec.security_context == (security_context or {})
 
+    def test_set_annotation(self, db: Session, client: TestClient):
+        runtime = self._generate_runtime()
+        
+        
+        
+
     def test_run_with_priority_class_name(self, db: Session, client: TestClient):
         runtime = self._generate_runtime()
 

@@ -1182,6 +1182,11 @@ def compile_function_config(
                 mlrun.runtimes.pod.get_sanitized_attribute(function.spec, "affinity"),
             )
 
+    # enable annotation
+    if function.metadata.annotations:
+        config = function.spec.base_spec
+        update_in(config, "metadata.annotations", function.metadata.annotations)
+
     # don't send tolerations if nuclio is not compatible
     if validate_nuclio_version_compatibility("1.7.5"):
         if function.spec.tolerations:
