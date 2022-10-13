@@ -759,9 +759,8 @@ class TestNuclioRuntime(TestRuntimeBase):
 
     def test_set_metadata_annotations(self, db: Session, client: TestClient):
 
-        mlrun.mlconf.from_dict()
         function = self._generate_runtime(self.runtime_kind)
-
+        function.set_annotation("my-annotation-key", "value")
 
         self.execute_function(function)
         self._assert_deploy_called_basic_config(expected_class=self.class_name)
