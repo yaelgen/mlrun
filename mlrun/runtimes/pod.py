@@ -1048,9 +1048,7 @@ class KubeResource(BaseRuntime):
         namespace = self._get_k8s().resolve_namespace()
 
         labels = get_resource_labels(self, runobj, runobj.spec.scrape_metrics)
-        print(runobj.metadata)
-        new_meta = k8s_client.V1ObjectMeta(namespace=namespace, annotations=runobj.metadata.annotations, labels=labels)
-
+        new_meta = k8s_client.V1ObjectMeta(namespace=namespace, annotations=self.metadata.annotations or runobj.metadata.annotations, labels=labels)
         name = runobj.metadata.name or "mlrun"
         norm_name = f"{normalize_name(name)}-"
         if unique:
