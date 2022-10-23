@@ -877,6 +877,11 @@ class KubeResource(BaseRuntime):
             return self._set_env(name, value=str(value))
         return self._set_env(name, value_from=value_from)
 
+    def set_annotation(self, key, value):
+        self.metadata.annotations[key] = str(value)
+        print(self.metadata)
+        return self
+
     def get_env(self, name, default=None):
         """Get the pod environment variable for the given name, if not found return the default
         If it's a scalar value, will return it, if the value is from source, return the k8s struct (V1EnvVarSource)"""
