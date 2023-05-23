@@ -298,6 +298,7 @@ class BaseMetadata(ModelObj):
         categories=None,
         updated=None,
         credentials=None,
+        created=None,
     ):
         self.name = name
         self.tag = tag
@@ -308,6 +309,7 @@ class BaseMetadata(ModelObj):
         self.categories = categories or []
         self.annotations = annotations or {}
         self.updated = updated
+        self.created = created
         self._credentials = None
         self.credentials = credentials
 
