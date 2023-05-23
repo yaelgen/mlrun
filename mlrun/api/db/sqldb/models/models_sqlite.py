@@ -134,6 +134,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
+        created = Column(TIMESTAMP)
         labels = relationship(Label)
 
         def get_identifier_string(self) -> str:

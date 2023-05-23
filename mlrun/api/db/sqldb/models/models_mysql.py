@@ -132,6 +132,7 @@ with warnings.catch_warnings():
         # TODO: change to JSON, see mlrun/common/schemas/function.py::FunctionState for reasoning
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
+        created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
@@ -387,6 +388,7 @@ with warnings.catch_warnings():
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
         )
+        created_by = Column(String(255, collation=SQLCollationUtil.collation()))
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
@@ -431,6 +433,7 @@ with warnings.catch_warnings():
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
         )
+        created_by = Column(String(255, collation=SQLCollationUtil.collation()))
         updated = Column(
             sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3),
             default=datetime.now(timezone.utc),
