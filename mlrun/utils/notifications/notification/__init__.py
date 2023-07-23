@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,18 +15,22 @@
 import enum
 import typing
 
+from mlrun.common.schemas.notification import NotificationKind
+
 from .base import NotificationBase
 from .console import ConsoleNotification
 from .git import GitNotification
 from .ipython import IPythonNotification
 from .slack import SlackNotification
+from .webhook import WebhookNotification
 
 
 class NotificationTypes(str, enum.Enum):
-    console = "console"
-    git = "git"
-    ipython = "ipython"
-    slack = "slack"
+    console = NotificationKind.console.value
+    git = NotificationKind.git.value
+    ipython = NotificationKind.ipython.value
+    slack = NotificationKind.slack.value
+    webhook = NotificationKind.webhook.value
 
     def get_notification(self) -> typing.Type[NotificationBase]:
         return {
@@ -34,6 +38,7 @@ class NotificationTypes(str, enum.Enum):
             self.git: GitNotification,
             self.ipython: IPythonNotification,
             self.slack: SlackNotification,
+            self.webhook: WebhookNotification,
         }.get(self)
 
     def inverse_dependencies(self) -> typing.List[str]:
@@ -54,5 +59,6 @@ class NotificationTypes(str, enum.Enum):
                 cls.git,
                 cls.ipython,
                 cls.slack,
+                cls.webhook,
             ]
         )

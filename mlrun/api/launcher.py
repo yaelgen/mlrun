@@ -14,10 +14,12 @@
 from typing import Dict, List, Optional, Union
 
 import mlrun.api.crud
-import mlrun.api.db.sqldb.session
+import mlrun.common.db.sql_session
 import mlrun.common.schemas.schedule
+import mlrun.config
 import mlrun.execution
-import mlrun.launcher.base
+import mlrun.launcher.base as launcher
+import mlrun.launcher.factory
 import mlrun.runtimes
 import mlrun.runtimes.generators
 import mlrun.runtimes.utils
@@ -25,11 +27,25 @@ import mlrun.utils
 import mlrun.utils.regex
 
 
-class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
+def initialize_launcher():
+    """Set the factory custom launcher to the server side launcher"""
+    mlrun.launcher.factory.LauncherFactory().set_launcher(ServerSideLauncher)
+
+
+class ServerSideLauncher(launcher.BaseLauncher):
+    def __init__(self, local: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        if local:
+            raise mlrun.errors.MLRunInternalServerError(
+                "Launch of local run inside the server is not allowed"
+            )
+
     def launch(
         self,
         runtime: mlrun.runtimes.BaseRuntime,
-        task: Optional[Union[mlrun.run.RunTemplate, mlrun.run.RunObject]] = None,
+        task: Optional[
+            Union["mlrun.run.RunTemplate", "mlrun.run.RunObject", dict]
+        ] = None,
         handler: Optional[str] = None,
         name: Optional[str] = "",
         project: Optional[str] = "",
@@ -52,7 +68,7 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
         notifications: Optional[List[mlrun.model.Notification]] = None,
         returns: Optional[List[Union[str, Dict[str, str]]]] = None,
     ) -> mlrun.run.RunObject:
-        self._enrich_runtime(runtime)
+        self.enrich_runtime(runtime, project)
 
         run = self._create_run_object(task)
 
@@ -136,34 +152,43 @@ class ServerSideLauncher(mlrun.launcher.base.BaseLauncher):
             finally:
                 result = runtime._update_run_state(resp=resp, task=run, err=last_err)
 
-        self._save_or_push_notifications(run)
+        self._save_notifications(run)
 
         runtime._post_run(result, execution)  # hook for runtime specific cleanup
 
         return self._wrap_run_result(runtime, result, run, err=last_err)
 
     @staticmethod
-    def _enrich_runtime(runtime):
-        pass
-
-    def _save_or_push_notifications(self, runobj):
-        if not runobj.spec.notifications:
-            mlrun.utils.logger.debug(
-                "No notifications to push for run", run_uid=runobj.metadata.uid
+    def enrich_runtime(
+        runtime: "mlrun.runtimes.base.BaseRuntime", project_name: Optional[str] = ""
+    ):
+        """
+        Enrich the runtime object with the project spec and metadata.
+        This is done only on the server side, since it's the source of truth for the project, and we want to keep the
+        client side enrichment as minimal as possible.
+        """
+        # ensure the runtime has a project before we enrich it with the project's spec
+        runtime.metadata.project = (
+            project_name
+            or runtime.metadata.project
+            or mlrun.config.config.default_project
+        )
+        project = runtime._get_db().get_project(runtime.metadata.project)
+        # this is mainly for tests with nop db
+        # in normal use cases if no project is found we will get an error
+        if project:
+            project = mlrun.projects.project.MlrunProject.from_dict(project.dict())
+            mlrun.projects.pipelines.enrich_function_object(
+                project, runtime, copy_function=False
             )
-            return
 
-        # TODO: add support for other notifications per run iteration
-        if runobj.metadata.iteration and runobj.metadata.iteration > 0:
-            mlrun.utils.logger.debug(
-                "Notifications per iteration are not supported, skipping",
-                run_uid=runobj.metadata.uid,
-            )
+    def _save_notifications(self, runobj):
+        if not self._run_has_valid_notifications(runobj):
             return
 
         # If in the api server, we can assume that watch=False, so we save notification
         # configs to the DB, for the run monitor to later pick up and push.
-        session = mlrun.api.db.sqldb.session.create_session()
+        session = mlrun.common.db.sql_session.create_session()
         mlrun.api.crud.Notifications().store_run_notifications(
             session,
             runobj.spec.notifications,

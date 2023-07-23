@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -98,6 +98,20 @@ class Client(
             "DELETE", f"projects/{project}/schedules/{name}", request
         )
 
+    async def submit_workflow(
+        self,
+        project: str,
+        name: str,
+        request: fastapi.Request,
+        json: dict,
+    ) -> fastapi.Response:
+        """
+        Workflow schedules are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "POST", f"projects/{project}/workflows/{name}/submit", request, json
+        )
+
     async def delete_schedules(
         self, project: str, request: fastapi.Request
     ) -> fastapi.Response:
@@ -175,6 +189,19 @@ class Client(
             return mlrun.common.schemas.ClusterizationSpec(
                 **(await chief_response.json())
             )
+
+    async def set_schedule_notifications(
+        self, project: str, schedule_name: str, request: fastapi.Request, json: dict
+    ) -> fastapi.Response:
+        """
+        Schedules are running only on chief
+        """
+        return await self._proxy_request_to_chief(
+            "PUT",
+            f"projects/{project}/schedules/{schedule_name}/notifications",
+            request,
+            json,
+        )
 
     async def _proxy_request_to_chief(
         self,

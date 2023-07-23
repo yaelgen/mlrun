@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -57,6 +57,7 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
     model_endpoint = "model-endpoint"
     pipeline = "pipeline"
     hub_source = "hub-source"
+    workflow = "workflow"
 
     def to_resource_string(
         self,
@@ -86,7 +87,11 @@ class AuthorizationResourceTypes(mlrun.common.types.StrEnum):
             AuthorizationResourceTypes.model_endpoint: "/projects/{project_name}/model-endpoints/{resource_name}",
             AuthorizationResourceTypes.pipeline: "/projects/{project_name}/pipelines/{resource_name}",
             # Hub sources are not project-scoped, and auth is globally on the sources endpoint.
-            AuthorizationResourceTypes.hub_source: "/hub/sources",
+            # TODO - this was reverted to /marketplace since MLRun needs to be able to run with old igz versions. Once
+            #  we only have support for igz versions that support /hub (>=3.5.4), change this to "/hub/sources".
+            AuthorizationResourceTypes.hub_source: "/marketplace/sources",
+            # workflow define how to run a pipeline and can be considered as the specification of a pipeline.
+            AuthorizationResourceTypes.workflow: "/projects/{project_name}/workflows/{resource_name}",
         }[self].format(project_name=project_name, resource_name=resource_name)
 
 

@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,13 +56,13 @@ from mlrun.api.db.sqldb.models import (
     Function,
     HubSource,
     Log,
-    Notification,
     Project,
     Run,
     Schedule,
     User,
     _labeled,
     _tagged,
+    _with_notifications,
 )
 from mlrun.config import config
 from mlrun.errors import err_to_str
@@ -82,7 +82,6 @@ from mlrun.utils import (
 )
 
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 unversioned_tagged_object_uid_prefix = "unversioned-"
 
 conflict_messages = [
@@ -382,7 +381,7 @@ class SQLDB(DBInterface):
 
         # Purposefully not using outer join to avoid returning runs without notifications
         if with_notifications:
-            query = query.join(Notification, Run.id == Notification.run)
+            query = query.join(Run.Notification)
 
         runs = RunList()
         for run in query:
@@ -988,7 +987,31 @@ class SQLDB(DBInterface):
         self.tag_objects_v2(session, [fn], project, tag)
         return hash_key
 
-    def get_function(self, session, name, project="", tag="", hash_key=""):
+    def get_function(self, session, name, project="", tag="", hash_key="") -> dict:
+        """
+        In version 1.4.0 we added a normalization to the function name before storing.
+        To be backwards compatible and allow users to query old non-normalized functions,
+        we're providing a fallback to get_function:
+        normalize the requested name and try to retrieve it from the database.
+        If no answer is received, we will check to see if the original name contained underscores,
+        if so, the retrieval will be repeated and the result (if it exists) returned.
+        """
+        normalized_function_name = mlrun.utils.normalize_name(name)
+        try:
+            return self._get_function(
+                session, normalized_function_name, project, tag, hash_key
+            )
+        except mlrun.errors.MLRunNotFoundError as exc:
+            if "_" in name:
+                logger.warning(
+                    "Failed to get underscore-named function, trying without normalization",
+                    function_name=name,
+                )
+                return self._get_function(session, name, project, tag, hash_key)
+            else:
+                raise exc
+
+    def _get_function(self, session, name, project="", tag="", hash_key=""):
         project = project or config.default_project
         query = self._query(session, Function, name=name, project=project)
         computed_tag = tag or "latest"
@@ -1151,6 +1174,63 @@ class SQLDB(DBInterface):
 
         return results
 
+    def store_schedule(
+        self,
+        session: Session,
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
+        schedule = self.get_schedule(
+            session=session, project=project, name=name, raise_on_not_found=False
+        )
+        schedule_exist = schedule is not None
+
+        if not schedule_exist:
+            schedule = Schedule(
+                project=project,
+                name=name,
+                kind=kind.value,
+                creation_time=datetime.now(timezone.utc),
+                concurrency_limit=concurrency_limit,
+                next_run_time=next_run_time,
+                scheduled_object=scheduled_object,
+                cron_trigger=cron_trigger,
+            )
+            labels = labels or {}
+
+        self._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            last_run_uri=last_run_uri,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Storing schedule to db",
+            project=project,
+            name=name,
+            kind=kind,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+            scheduled_object=scheduled_object,
+        )
+
+        self._upsert(session, [schedule])
+
+        if schedule_exist:
+            return schedule
+
     def create_schedule(
         self,
         session: Session,
@@ -1209,6 +1289,37 @@ class SQLDB(DBInterface):
     ):
         schedule = self._get_schedule_record(session, project, name)
 
+        self._update_schedule_body(
+            schedule=schedule,
+            scheduled_object=scheduled_object,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            last_run_uri=last_run_uri,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+
+        logger.debug(
+            "Updating schedule in db",
+            project=project,
+            name=name,
+            cron_trigger=cron_trigger,
+            labels=labels,
+            concurrency_limit=concurrency_limit,
+            next_run_time=next_run_time,
+        )
+        self._upsert(session, [schedule])
+
+    @staticmethod
+    def _update_schedule_body(
+        schedule: mlrun.common.schemas.ScheduleRecord,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ):
         # explicitly ensure the updated fields are not None, as they can be empty strings/dictionaries etc.
         if scheduled_object is not None:
             schedule.scheduled_object = scheduled_object
@@ -1229,17 +1340,6 @@ class SQLDB(DBInterface):
             # We receive the next_run_time with localized timezone info (e.g +03:00). All the timestamps should be
             # saved in the DB in UTC timezone, therefore we transform next_run_time to UTC as well.
             schedule.next_run_time = next_run_time.astimezone(pytz.utc)
-
-        logger.debug(
-            "Updating schedule in db",
-            project=project,
-            name=name,
-            cron_trigger=cron_trigger,
-            labels=labels,
-            concurrency_limit=concurrency_limit,
-            next_run_time=next_run_time,
-        )
-        self._upsert(session, [schedule])
 
     def list_schedules(
         self,
@@ -1263,19 +1363,23 @@ class SQLDB(DBInterface):
         return schedules
 
     def get_schedule(
-        self, session: Session, project: str, name: str
-    ) -> mlrun.common.schemas.ScheduleRecord:
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
+    ) -> typing.Optional[mlrun.common.schemas.ScheduleRecord]:
         logger.debug("Getting schedule from db", project=project, name=name)
-        schedule_record = self._get_schedule_record(session, project, name)
+        schedule_record = self._get_schedule_record(
+            session, project, name, raise_on_not_found
+        )
+        if not schedule_record:
+            return
         schedule = self._transform_schedule_record_to_scheme(schedule_record)
         return schedule
 
     def _get_schedule_record(
-        self, session: Session, project: str, name: str
+        self, session: Session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         query = self._query(session, Schedule, project=project, name=name)
         schedule_record = query.one_or_none()
-        if not schedule_record:
+        if not schedule_record and raise_on_not_found:
             raise mlrun.errors.MLRunNotFoundError(
                 f"Schedule not found: project={project}, name={name}"
             )
@@ -1366,7 +1470,7 @@ class SQLDB(DBInterface):
         self._upsert(session, tags)
 
     def create_project(self, session: Session, project: mlrun.common.schemas.Project):
-        logger.debug("Creating project in DB", project=project)
+        logger.debug("Creating project in DB", project_name=project.metadata.name)
         created = datetime.utcnow()
         project.metadata.created = created
         # TODO: handle taking out the functions/workflows/artifacts out of the project and save them separately
@@ -1387,7 +1491,14 @@ class SQLDB(DBInterface):
     def store_project(
         self, session: Session, name: str, project: mlrun.common.schemas.Project
     ):
-        logger.debug("Storing project in DB", name=name, project=project)
+        logger.debug(
+            "Storing project in DB",
+            name=name,
+            project_metadata=project.metadata,
+            project_owner=project.spec.owner,
+            project_desired_state=project.spec.desired_state,
+            project_status=project.status,
+        )
         project_record = self._get_project_record(
             session, name, raise_on_not_found=False
         )
@@ -1719,7 +1830,7 @@ class SQLDB(DBInterface):
         name: str = None,
         project_id: int = None,
         raise_on_not_found: bool = True,
-    ) -> Project:
+    ) -> typing.Optional[Project]:
         if not any([project_id, name]):
             raise mlrun.errors.MLRunInvalidArgumentError(
                 "One of 'name' or 'project_id' must be provided"
@@ -1745,7 +1856,9 @@ class SQLDB(DBInterface):
         self._verify_empty_list_of_project_related_resources(name, logs, "logs")
         runs = self._find_runs(session, None, name, []).all()
         self._verify_empty_list_of_project_related_resources(name, runs, "runs")
-        notifications = self._get_db_notifications(session, project=name)
+        notifications = []
+        for cls in _with_notifications:
+            notifications.extend(self._get_db_notifications(session, cls, project=name))
         self._verify_empty_list_of_project_related_resources(
             name, notifications, "notifications"
         )
@@ -2260,7 +2373,6 @@ class SQLDB(DBInterface):
         feature_set_spec = new_feature_set_dict.get("spec")
         features = feature_set_spec.pop("features", [])
         entities = feature_set_spec.pop("entities", [])
-
         self._update_feature_set_features(feature_set, features)
         self._update_feature_set_entities(feature_set, entities)
 
@@ -2425,7 +2537,6 @@ class SQLDB(DBInterface):
         )
 
         db_feature_set = FeatureSet(project=project)
-
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
@@ -2835,32 +2946,50 @@ class SQLDB(DBInterface):
         def _try_commit_obj():
             try:
                 session.commit()
-            except SQLAlchemyError as err:
+            except SQLAlchemyError as sql_err:
                 session.rollback()
-                cls = objects[0].__class__.__name__
-                if "database is locked" in str(err):
+                classes = list(set([object_.__class__.__name__ for object_ in objects]))
+
+                # if the database is locked, we raise a retryable error
+                if "database is locked" in str(sql_err):
                     logger.warning(
-                        "Database is locked. Retrying", cls=cls, err=str(err)
+                        "Database is locked. Retrying",
+                        classes_to_commit=classes,
+                        err=str(sql_err),
                     )
                     raise mlrun.errors.MLRunRuntimeError(
                         "Failed committing changes, database is locked"
-                    ) from err
+                    ) from sql_err
+
+                # the error is not retryable, so we try to identify weather there was a conflict or not
+                # either way - we wrap the error with a fatal error so the retry mechanism will stop
                 logger.warning(
-                    "Failed committing changes to DB", cls=cls, err=err_to_str(err)
+                    "Failed committing changes to DB",
+                    classes=classes,
+                    err=err_to_str(sql_err),
                 )
                 if not ignore:
+                    # get the identifiers of the objects that failed to commit, for logging purposes
                     identifiers = ",".join(
                         object_.get_identifier_string() for object_ in objects
                     )
-                    # We want to retry only when database is locked so for any other scenario escalate to fatal failure
+
+                    mlrun_error = mlrun.errors.MLRunRuntimeError(
+                        f"Failed committing changes to DB. classes={classes} objects={identifiers}"
+                    )
+
+                    # check if the error is a conflict error
+                    if any([message in str(sql_err) for message in conflict_messages]):
+                        mlrun_error = mlrun.errors.MLRunConflictError(
+                            f"Conflict - at least one of the objects already exists: {identifiers}"
+                        )
+
+                    # we want to keep the exception stack trace, but we also want the retry mechanism to stop
+                    # so, we raise a new indicative exception from the original sql exception (this keeps
+                    # the stack trace intact), and then wrap it with a fatal error (which stops the retry mechanism).
+                    # Note - this way, the exception is raised from this code section, and not from the retry function.
                     try:
-                        if any([message in str(err) for message in conflict_messages]):
-                            raise mlrun.errors.MLRunConflictError(
-                                f"Conflict - {cls} already exists: {identifiers}"
-                            ) from err
-                        raise mlrun.errors.MLRunRuntimeError(
-                            f"Failed committing changes to DB. class={cls} objects={identifiers}"
-                        ) from err
+                        raise mlrun_error from sql_err
                     except (
                         mlrun.errors.MLRunRuntimeError,
                         mlrun.errors.MLRunConflictError,
@@ -2890,10 +3019,10 @@ class SQLDB(DBInterface):
         return self._add_labels_filter(session, query, Run, labels)
 
     def _get_db_notifications(
-        self, session, name: str = None, run_id: int = None, project: str = None
+        self, session, cls, name: str = None, parent_id: str = None, project: str = None
     ):
         return self._query(
-            session, Notification, name=name, run=run_id, project=project
+            session, cls.Notification, name=name, parent_id=parent_id, project=project
         ).all()
 
     def _latest_uid_filter(self, session, query):
@@ -3236,7 +3365,7 @@ class SQLDB(DBInterface):
 
     def _transform_notification_record_to_spec_and_status(
         self,
-        notification_record: Notification,
+        notification_record,
     ) -> typing.Tuple[dict, dict]:
         notification_spec = self._transform_notification_record_to_schema(
             notification_record
@@ -3249,7 +3378,7 @@ class SQLDB(DBInterface):
 
     @staticmethod
     def _transform_notification_record_to_schema(
-        notification_record: Notification,
+        notification_record,
     ) -> mlrun.model.Notification:
         return mlrun.model.Notification(
             kind=notification_record.kind,
@@ -3642,18 +3771,36 @@ class SQLDB(DBInterface):
                 f"Run not found: uid={run_uid}, project={project}"
             )
 
-        run_notifications = {
+        self._store_notifications(session, Run, notification_objects, run.id, project)
+
+    def _store_notifications(
+        self,
+        session,
+        cls,
+        notification_objects: typing.List[mlrun.model.Notification],
+        parent_id: str,
+        project: str,
+    ):
+        db_notifications = {
             notification.name: notification
-            for notification in self._get_db_notifications(session, run_id=run.id)
+            for notification in self._get_db_notifications(
+                session, cls, parent_id=parent_id
+            )
         }
         notifications = []
+        logger.debug(
+            "Storing notifications",
+            notifications_length=len(notification_objects),
+            parent_id=parent_id,
+            project=project,
+        )
         for notification_model in notification_objects:
             new_notification = False
-            notification = run_notifications.get(notification_model.name, None)
+            notification = db_notifications.get(notification_model.name, None)
             if not notification:
                 new_notification = True
-                notification = Notification(
-                    name=notification_model.name, run=run.id, project=project
+                notification = cls.Notification(
+                    name=notification_model.name, parent_id=parent_id, project=project
                 )
 
             notification.kind = notification_model.kind
@@ -3671,7 +3818,8 @@ class SQLDB(DBInterface):
             logger.debug(
                 f"Storing {'new' if new_notification else 'existing'} notification",
                 notification_name=notification.name,
-                run_uid=run_uid,
+                notification_status=notification.status,
+                parent_id=parent_id,
                 project=project,
             )
             notifications.append(notification)
@@ -3692,7 +3840,9 @@ class SQLDB(DBInterface):
 
         return [
             self._transform_notification_record_to_schema(notification)
-            for notification in self._query(session, Notification, run=run.id).all()
+            for notification in self._query(
+                session, Run.Notification, parent_id=run.id
+            ).all()
         ]
 
     def delete_run_notifications(
@@ -3718,9 +3868,51 @@ class SQLDB(DBInterface):
         if project == "*":
             project = None
 
-        query = self._get_db_notifications(session, name, run_id, project)
+        query = self._get_db_notifications(session, Run, name, run_id, project)
         for notification in query:
             session.delete(notification)
 
         if commit:
             session.commit()
+
+    def set_run_notifications(
+        self,
+        session: Session,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        identifier: mlrun.common.schemas.RunIdentifier,
+        **kwargs,
+    ):
+        """
+        Set notifications for a run. This will replace any existing notifications.
+        :param session: SQLAlchemy session
+        :param project: Project name
+        :param notifications: List of notifications to set
+        :param identifier: Run identifier
+        :param kwargs: Ignored additional arguments (for interfacing purposes)
+        """
+        run = self._get_run(session, identifier.uid, project, None)
+        if not run:
+            raise mlrun.errors.MLRunNotFoundError(
+                f"Run not found: project={project}, uid={identifier.uid}"
+            )
+
+        run.struct.setdefault("spec", {})["notifications"] = [
+            notification.to_dict() for notification in notifications
+        ]
+
+        # update run, delete and store notifications all in one transaction.
+        # using session.add instead of upsert, so we don't commit the run.
+        # the commit will happen at the end (in store_run_notifications, or manually at the end).
+        session.add(run)
+        self.delete_run_notifications(
+            session, run_uid=run.uid, project=project, commit=False
+        )
+        if notifications:
+            self.store_run_notifications(
+                session,
+                notification_objects=notifications,
+                run_uid=run.uid,
+                project=project,
+            )
+        self._commit(session, [run], ignore=True)

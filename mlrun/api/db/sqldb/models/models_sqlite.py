@@ -1,4 +1,4 @@
-# Copyright 2019 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,7 +39,6 @@ from mlrun.api.utils.db.sql_collation import SQLCollationUtil
 
 Base = declarative_base()
 NULL = None  # Avoid flake8 issuing warnings when comparing in filter
-run_time_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
 
 
 def make_label(table):
@@ -53,6 +52,9 @@ def make_label(table):
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         value = Column(String(255, collation=SQLCollationUtil.collation()))
         parent = Column(Integer, ForeignKey(f"{table}.id"))
+
+        def get_identifier_string(self) -> str:
+            return f"{self.parent}/{self.name}/{self.value}"
 
     return Label
 
@@ -90,7 +92,50 @@ def make_tag_v2(table):
             ForeignKey(f"{table}.name"),
         )
 
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
+
     return Tag
+
+
+def make_notification(table):
+    class Notification(Base, mlrun.utils.db.BaseModel):
+        __tablename__ = f"{table}_notifications"
+        __table_args__ = (
+            UniqueConstraint("name", "parent_id", name=f"_{table}_notifications_uc"),
+        )
+
+        id = Column(Integer, primary_key=True)
+        project = Column(String(255, collation=SQLCollationUtil.collation()))
+        name = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        kind = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        message = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        severity = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        when = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        condition = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+        params = Column("params", JSON)
+        parent_id = Column(Integer, ForeignKey(f"{table}.id"))
+        sent_time = Column(
+            TIMESTAMP(),
+            nullable=True,
+        )
+        status = Column(
+            String(255, collation=SQLCollationUtil.collation()), nullable=False
+        )
+
+    return Notification
 
 
 # quell SQLAlchemy warnings on duplicate class name (Label)
@@ -152,40 +197,6 @@ with warnings.catch_warnings():
         def get_identifier_string(self) -> str:
             return f"{self.project}/{self.uid}"
 
-    class Notification(Base, mlrun.utils.db.BaseModel):
-        __tablename__ = "notifications"
-        __table_args__ = (UniqueConstraint("name", "run", name="_notifications_uc"),)
-
-        id = Column(Integer, primary_key=True)
-        project = Column(String(255, collation=SQLCollationUtil.collation()))
-        name = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        kind = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        message = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        severity = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        when = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        condition = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-        params = Column("params", JSON)
-        run = Column(Integer, ForeignKey("runs.id"))
-        sent_time = Column(
-            TIMESTAMP(),
-            nullable=True,
-        )
-        status = Column(
-            String(255, collation=SQLCollationUtil.collation()), nullable=False
-        )
-
     class Run(Base, mlrun.utils.db.HasStruct):
         __tablename__ = "runs"
         __table_args__ = (
@@ -194,6 +205,7 @@ with warnings.catch_warnings():
 
         Label = make_label(__tablename__)
         Tag = make_tag(__tablename__)
+        Notification = make_notification(__tablename__)
 
         id = Column(Integer, primary_key=True)
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
@@ -235,6 +247,9 @@ with warnings.catch_warnings():
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         timeout = Column(Integer)
+
+        def get_identifier_string(self) -> str:
+            return f"{self.project}/{self.name}"
 
     class Schedule(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "schedules_v2"
@@ -295,6 +310,9 @@ with warnings.catch_warnings():
         id = Column(Integer, primary_key=True)
         name = Column(String(255, collation=SQLCollationUtil.collation()))
 
+        def get_identifier_string(self) -> str:
+            return f"{self.name}"
+
     class Project(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "projects"
         # For now since we use project name a lot
@@ -341,7 +359,7 @@ with warnings.catch_warnings():
         labels = relationship(Label, cascade="all, delete-orphan")
 
         def get_identifier_string(self) -> str:
-            return f"{self.project}/{self.name}"
+            return f"{self.feature_set_id}/{self.name}"
 
     class Entity(Base, mlrun.utils.db.BaseModel):
         __tablename__ = "entities"
@@ -458,9 +476,15 @@ with warnings.catch_warnings():
         version = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
 
+        def get_identifier_string(self) -> str:
+            return f"{self.version}"
+
 
 # Must be after all table definitions
 _tagged = [cls for cls in Base.__subclasses__() if hasattr(cls, "Tag")]
 _labeled = [cls for cls in Base.__subclasses__() if hasattr(cls, "Label")]
+_with_notifications = [
+    cls for cls in Base.__subclasses__() if hasattr(cls, "Notification")
+]
 _classes = [cls for cls in Base.__subclasses__()]
 _table2cls = {cls.__table__.name: cls for cls in Base.__subclasses__()}

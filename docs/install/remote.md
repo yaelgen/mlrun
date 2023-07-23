@@ -5,11 +5,12 @@ You can write your code on a local machine while running your functions on a rem
 
 **In this section**
 - [Prerequisites](#prerequisites)
-- [Set up client environment](#set-up-client-environment)
+- [Set up a Python 3.7 client environment](#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2)
+- [Set up a Python 3.9 client environment](#set-up-a-python-3-9-client-environment)
 - [Configure remote environment](#configure-remote-environment)
    - [Using `mlrun config set` command in MLRun CLI](#using-mlrun-config-set-command-in-mlrun-cli)
    - [Using `mlrun.set_environment` command in MLRun SDK](#using-mlrun-set-environment-command-in-mlrun-sdk)
-   - [Using your IDE (e.g PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
+   - [Using your IDE (e.g. PyCharm or VSCode)](#using-your-ide-e-g-pycharm-or-vscode)
 
 <a id="prerequisites"></a>
 ## Prerequisites
@@ -17,10 +18,14 @@ You can write your code on a local machine while running your functions on a rem
 Before you begin, ensure that the following prerequisites are met:
 
 Applications:
-- Python 3.9 
+- Python 3.9 (or Python 3.7 for Iguazio versions up to and including v3.5.2)
 - Recommended pip 22.x+
 
-## Set up client environment 
+The MLRun server is now based on a Python 3.9 environment. It's recommended to move the client to a Python 3.9 environment as well. 
+
+For a Python 3.7 environment see [Set up a Python 3.7 client environment](../change-log/index.html#set-up-a-python-3-7-client-environment-iguazio-versions-up-to-and-including-v3-5-2).
+
+## Set up a Python 3.9 client environment 
 
 1.  **Basic** <br> 
 Run ```pip install mlrun```
@@ -41,13 +46,27 @@ To install a specific version, use the command: `pip install mlrun==<version>`. 
       
    - To install all extras, run: ```pip install mlrun[complete]``` See the full list [here](https://github.com/mlrun/mlrun/blob/development/setup.py#L75).<br>
      
-2. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
+3. Alternatively, if you already installed a previous version of MLRun, upgrade it by running:
 
     ```sh
     pip install -U mlrun==<version>
     ```
 
-3. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
+4. Ensure that you have remote access to your MLRun service (i.e., to the service URL on the remote Kubernetes cluster).
+5. When installing other python packages on top of MLRun, make sure to install them with mlrun in the same command/requirement file to avoid version conflicts. For example:
+    ```sh
+    pip install mlrun <other-package>
+    ```
+    or
+    ```sh
+    pip install -r requirements.txt
+    ```
+    where `requirements.txt` contains:
+    ```
+    mlrun
+    <other-package>
+    ```
+    Do so even if you already have MLRun installed so that pip will take MLRun requirements into consideration when installing the other package.
 
 ## Configure remote environment
 You have a few options to configure your remote environment:

@@ -1,4 +1,4 @@
-# Copyright 2022 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ class NopDB(RunDBInterface):
     def __getattribute__(self, attr):
         def nop(*args, **kwargs):
             env_var_message = (
-                "MLRUN_DBPATH is not set. Set this environment variable to the URL of the API "
+                "MLRUN_DBPATH is misconfigured. Set this environment variable to the URL of the API "
                 "server in order to connect"
             )
             if config.httpdb.nop_db.raise_error:
@@ -45,7 +45,8 @@ class NopDB(RunDBInterface):
 
             return
 
-        if attr == "connect":
+        # ignore __class__ because __getattribute__ overrides the parent class's method and it spams logs
+        if attr in ["connect", "__class__"]:
             return super().__getattribute__(attr)
         else:
             nop()
@@ -66,7 +67,7 @@ class NopDB(RunDBInterface):
     def update_run(self, updates: dict, uid, project="", iter=0):
         pass
 
-    def abort_run(self, uid, project="", iter=0):
+    def abort_run(self, uid, project="", iter=0, timeout=45):
         pass
 
     def read_run(self, uid, project="", iter=0):
@@ -93,6 +94,7 @@ class NopDB(RunDBInterface):
             mlrun.common.schemas.OrderType, str
         ] = mlrun.common.schemas.OrderType.desc,
         max_partitions: int = 0,
+        with_notifications: bool = False,
     ):
         pass
 

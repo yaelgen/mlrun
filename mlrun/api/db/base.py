@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -259,6 +259,21 @@ class DBInterface(ABC):
     ):
         pass
 
+    def store_schedule(
+        self,
+        session,
+        project: str,
+        name: str,
+        kind: mlrun.common.schemas.ScheduleKinds = None,
+        scheduled_object: Any = None,
+        cron_trigger: mlrun.common.schemas.ScheduleCronTrigger = None,
+        labels: Dict = None,
+        last_run_uri: str = None,
+        concurrency_limit: int = None,
+        next_run_time: datetime = None,
+    ):
+        pass
+
     @abstractmethod
     def list_schedules(
         self,
@@ -272,7 +287,7 @@ class DBInterface(ABC):
 
     @abstractmethod
     def get_schedule(
-        self, session, project: str, name: str
+        self, session, project: str, name: str, raise_on_not_found: bool = True
     ) -> mlrun.common.schemas.ScheduleRecord:
         pass
 
@@ -611,5 +626,15 @@ class DBInterface(ABC):
         run_uid: str = None,
         project: str = None,
         commit: bool = True,
+    ):
+        pass
+
+    def set_run_notifications(
+        self,
+        session,
+        project: str,
+        notifications: typing.List[mlrun.model.Notification],
+        identifiers: typing.List[mlrun.common.schemas.RunIdentifier],
+        **kwargs,
     ):
         pass

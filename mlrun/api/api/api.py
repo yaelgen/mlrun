@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,6 +41,7 @@ from mlrun.api.api.endpoints import (
     secrets,
     submit,
     tags,
+    workflows,
 )
 
 api_router = APIRouter(dependencies=[Depends(mlrun.api.api.deps.verify_api_state)])
@@ -143,5 +144,10 @@ api_router.include_router(
 api_router.include_router(
     internal.internal_router,
     tags=["internal"],
+    dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
+)
+api_router.include_router(
+    workflows.router,
+    tags=["workflows"],
     dependencies=[Depends(mlrun.api.api.deps.authenticate_request)],
 )

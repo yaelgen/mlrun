@@ -1,4 +1,4 @@
-# Copyright 2018 Iguazio
+# Copyright 2023 Iguazio
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,3 +29,4 @@ from .runs import Runs
 from .runtime_resources import RuntimeResources
 from .secrets import Secrets, SecretsClientType
 from .tags import Tags
+from .workflows import WorkflowRunners

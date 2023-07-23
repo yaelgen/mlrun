@@ -9,6 +9,7 @@ Configuration of job resources is relevant for all supported cloud platforms.
 **In this section**
 - [Replicas](#replicas)
 - [CPU, GPU, and memory limits for user jobs](#cpu-gpu-and-memory-limits-for-user-jobs)
+- [Number of GPUs](#number-of-gpus)
 - [Volumes](#volumes)
 - [Preemption mode: Spot vs. On-demand nodes](#preemption-mode-spot-vs-on-demand-nodes)
 - [Pod priority for user jobs](#pod-priority-for-user-jobs)
@@ -17,11 +18,20 @@ Configuration of job resources is relevant for all supported cloud platforms.
 
 Some runtimes can scale horizontally, configured either as a number of replicas:</br>
 `spec.replicas` </br>
-or a range (for auto scaling in Dask or Nuclio:</br>
+or a range (for auto scaling in Dask or Nuclio):</br>
 ```
 spec.min_replicas = 1
 spec.max_replicas = 4
 ```
+
+```{admonition} Note
+Scaling (replication) algorithm, if a `target utilization`
+(Target CPU%) value is set, the replication controller calculates the utilization
+value as a percentage of the equivalent `resource request` (CPU request) on
+the replicas and based on that provides horizontal scaling. 
+See also [Kubernetes horizontal autoscale](https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#how-does-a-horizontalpodautoscaler-work)
+```
+
 See more details in [Dask](../runtimes/dask-overview.html), [MPIJob and Horovod](../runtimes/horovod.html), [Spark](../runtimes/spark-operator.html), [Nuclio](../concepts/nuclio-real-time-functions.html).
 
 ## CPU, GPU, and memory limits for user jobs  
@@ -51,6 +61,11 @@ training_function.with_limits(gpus=1)
 ```{admonition} Note
 When specifying GPUs, MLRun uses `nvidia.com/gpu` as default GPU type. To use a different type of GPU, specify it using the optional `gpu_type` parameter.
 ```
+## Number of GPUs
+
+When using GPU in remote functions you must ensure that the number of GPUs is equal to the number of 
+workers. You can set the number of workers for each trigger and the number of GPUs for each pod 
+using the MLRun SDK.
 
 ## Volumes
 
@@ -205,7 +220,7 @@ Pods (services, or jobs created by those services) can have priorities, which in
 scheduling: a lower priority pod can be evicted to allow scheduling of a higher priority pod. Pod priority is relevant for all pods created 
 by the service. For MLRun, it applies to the jobs created by MLRun. For Nuclio it applies to the pods of the Nuclio-created functions.
 
-Eviction uses these values in conjuction with pod priority to determine what to evict [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption).
+Eviction uses these values in conjunction with pod priority to determine what to evict [Pod Priority and Preemption](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption).
 
 Pod priority is specified through Priority classes, which map to a priority value. The priority values are: High, Medium, Low. The default is Medium. Pod priority is supported for:
 - MLRun jobs: the default priority class for the jobs that MLRun creates.
