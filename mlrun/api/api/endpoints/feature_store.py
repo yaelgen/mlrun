@@ -64,6 +64,7 @@ async def create_feature_set(
         project,
         feature_set,
         versioned,
+        auth_info.username
     )
 
     return await run_in_threadpool(
@@ -560,6 +561,7 @@ async def create_feature_vector(
         project,
         feature_vector,
         versioned,
+        auth_info.username
     )
 
     return await run_in_threadpool(
@@ -750,6 +752,7 @@ async def store_feature_vector(
         tag,
         uid,
         versioned,
+        auth_info.username
     )
 
     return await run_in_threadpool(

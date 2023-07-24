@@ -60,6 +60,7 @@ class Functions(
             project,
             tag,
             versioned,
+            auth_info.username
         )
 
     def get_function(

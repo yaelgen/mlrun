@@ -206,6 +206,7 @@ class DBInterface(ABC):
         project="",
         tag="",
         versioned=False,
+        created_by="",
     ) -> str:
         pass
 
@@ -382,6 +383,7 @@ class DBInterface(ABC):
         project,
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
+        username=None
     ) -> str:
         pass
 
@@ -395,6 +397,7 @@ class DBInterface(ABC):
         tag=None,
         uid=None,
         versioned=True,
+        created_by="",
         always_overwrite=False,
     ) -> str:
         pass
@@ -481,6 +484,7 @@ class DBInterface(ABC):
         project,
         feature_vector: mlrun.common.schemas.FeatureVector,
         versioned=True,
+        username=None,
     ) -> str:
         pass
 
@@ -527,6 +531,7 @@ class DBInterface(ABC):
         tag=None,
         uid=None,
         versioned=True,
+        created_by="",
         always_overwrite=False,
     ) -> str:
         pass

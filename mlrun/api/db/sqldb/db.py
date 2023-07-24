@@ -934,6 +934,7 @@ class SQLDB(DBInterface):
         project="",
         tag="",
         versioned=False,
+        created_by="",
     ) -> str:
         logger.debug(
             "Storing function to DB",
@@ -978,6 +979,7 @@ class SQLDB(DBInterface):
                 name=name,
                 project=project,
                 uid=uid,
+                created_by=created_by or "",
             )
         fn.updated = updated
         labels = get_in(function, "metadata.labels", {})
@@ -2531,12 +2533,13 @@ class SQLDB(DBInterface):
         project,
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned=True,
+        created_by="",
     ) -> str:
         (uid, tag, feature_set_dict,) = self._validate_and_enrich_record_for_creation(
             session, feature_set, FeatureSet, project, versioned
         )
 
-        db_feature_set = FeatureSet(project=project)
+        db_feature_set = FeatureSet(project=project, created_by=created_by)
         self._update_db_record_from_object_dict(db_feature_set, feature_set_dict, uid)
         self._update_feature_set_spec(db_feature_set, feature_set_dict)
 
@@ -2623,6 +2626,7 @@ class SQLDB(DBInterface):
         project,
         feature_vector: mlrun.common.schemas.FeatureVector,
         versioned=True,
+        created_by=None,
     ) -> str:
         (
             uid,
@@ -2632,7 +2636,7 @@ class SQLDB(DBInterface):
             session, feature_vector, FeatureVector, project, versioned
         )
 
-        db_feature_vector = FeatureVector(project=project)
+        db_feature_vector = FeatureVector(project=project, created_by=created_by)
 
         self._update_db_record_from_object_dict(
             db_feature_vector, feature_vector_dict, uid
@@ -2765,6 +2769,7 @@ class SQLDB(DBInterface):
         uid=None,
         versioned=True,
         always_overwrite=False,
+        created_by="",
     ) -> str:
         original_uid = uid
 
@@ -2793,7 +2798,7 @@ class SQLDB(DBInterface):
                 ):
                     return uid
 
-                db_feature_vector = FeatureVector(project=project)
+                db_feature_vector = FeatureVector(project=project, created_by=created_by)
 
             self._update_db_record_from_object_dict(
                 db_feature_vector, feature_vector_dict, uid

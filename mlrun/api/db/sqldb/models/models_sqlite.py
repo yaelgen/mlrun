@@ -180,6 +180,7 @@ with warnings.catch_warnings():
         body = Column(BLOB)
         updated = Column(TIMESTAMP)
         created = Column(TIMESTAMP)
+        created_by = Column(String(255, collation=SQLCollationUtil.collation()))
         labels = relationship(Label)
 
         def get_identifier_string(self) -> str:
@@ -385,6 +386,7 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        created_by = Column(String(255, collation=SQLCollationUtil.collation()))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))
@@ -421,6 +423,7 @@ with warnings.catch_warnings():
         name = Column(String(255, collation=SQLCollationUtil.collation()))
         project = Column(String(255, collation=SQLCollationUtil.collation()))
         created = Column(TIMESTAMP, default=datetime.now(timezone.utc))
+        created_by = Column(String(255, collation=SQLCollationUtil.collation()))
         updated = Column(TIMESTAMP, default=datetime.now(timezone.utc))
         state = Column(String(255, collation=SQLCollationUtil.collation()))
         uid = Column(String(255, collation=SQLCollationUtil.collation()))

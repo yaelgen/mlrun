@@ -34,6 +34,7 @@ class FeatureStore(
         project: str,
         feature_set: mlrun.common.schemas.FeatureSet,
         versioned: bool = True,
+        created_by: str = None,
     ) -> str:
         if not feature_set.spec.engine:
             feature_set.spec.engine = "storey"
@@ -43,6 +44,7 @@ class FeatureStore(
             project,
             feature_set,
             versioned,
+            created_by
         )
 
     def store_feature_set(
@@ -54,6 +56,7 @@ class FeatureStore(
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
+        created_by: str = None
     ) -> str:
         if not feature_set.spec.engine:
             feature_set.spec.engine = "storey"
@@ -71,6 +74,7 @@ class FeatureStore(
             tag,
             uid,
             versioned,
+            created_by
         )
 
     def patch_feature_set(
@@ -208,8 +212,9 @@ class FeatureStore(
         project: str,
         feature_vector: mlrun.common.schemas.FeatureVector,
         versioned: bool = True,
+        created_by: str = None
     ) -> str:
-        return self._create_object(db_session, project, feature_vector, versioned)
+        return self._create_object(db_session, project, feature_vector, versioned, created_by)
 
     def store_feature_vector(
         self,
@@ -220,6 +225,7 @@ class FeatureStore(
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
+        created_by: str = None
     ) -> str:
         return self._store_object(
             db_session,
@@ -229,6 +235,7 @@ class FeatureStore(
             tag,
             uid,
             versioned,
+            created_by,
         )
 
     def patch_feature_vector(
@@ -333,16 +340,17 @@ class FeatureStore(
             mlrun.common.schemas.FeatureSet, mlrun.common.schemas.FeatureVector
         ],
         versioned: bool = True,
+        created_by: str = None
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_creation(project, object_)
         if isinstance(object_, mlrun.common.schemas.FeatureSet):
             return mlrun.api.utils.singletons.db.get_db().create_feature_set(
-                db_session, project, object_, versioned
+                db_session, project, object_, versioned, created_by
             )
         elif isinstance(object_, mlrun.common.schemas.FeatureVector):
             return mlrun.api.utils.singletons.db.get_db().create_feature_vector(
-                db_session, project, object_, versioned
+                db_session, project, object_, versioned, created_by
             )
         else:
             raise NotImplementedError(
@@ -360,6 +368,7 @@ class FeatureStore(
         tag: typing.Optional[str] = None,
         uid: typing.Optional[str] = None,
         versioned: bool = True,
+        created_by: str = None,
     ) -> str:
         project = project or mlrun.mlconf.default_project
         self._validate_and_enrich_identity_for_object_store(
@@ -374,6 +383,7 @@ class FeatureStore(
                 tag,
                 uid,
                 versioned,
+                created_by,
             )
         elif isinstance(object_, mlrun.common.schemas.FeatureVector):
             return mlrun.api.utils.singletons.db.get_db().store_feature_vector(
@@ -384,6 +394,7 @@ class FeatureStore(
                 tag,
                 uid,
                 versioned,
+                created_by,
             )
         else:
             raise NotImplementedError(

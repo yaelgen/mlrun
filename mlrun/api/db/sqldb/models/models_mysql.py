@@ -184,6 +184,7 @@ with warnings.catch_warnings():
         body = Column(sqlalchemy.dialects.mysql.MEDIUMBLOB)
         updated = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
         created = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
+        created_by = Column(sqlalchemy.dialects.mysql.TIMESTAMP(fsp=3))
 
         labels = relationship(Label, cascade="all, delete-orphan")
         tags = relationship(Tag, cascade="all, delete-orphan")
