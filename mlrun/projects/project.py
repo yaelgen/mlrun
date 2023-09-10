@@ -2785,8 +2785,14 @@ class MlrunProject(ModelObj):
                 " To remove the function, attempt to manually delete it.",
                 exc=repr(exc),
             )
-
-        return result
+        if image and result.outputs["image"] != image:
+            logger.warn(
+                "Your image may not have been built."
+                " If you provided only a target image without any commands or additional requirements,"
+                " this action is meaningless and will not result in the creation of a new image"
+                " or the tagging of the base image."
+            )
+            return result
 
     def deploy_function(
         self,
