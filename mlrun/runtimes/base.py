@@ -17,6 +17,7 @@ import http
 import re
 import warnings
 from base64 import b64encode
+from copy import deepcopy
 from os import environ
 from typing import Callable, Dict, List, Optional, Union
 
@@ -403,11 +404,12 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
         if runobj:
-            logger.info("!!!!!", runobj)
-            runobj_without_notification = runobj
-            del runobj_without_notification.spec["notifications"]
-            logger.info("!!!!!", runobj_without_notification, runobj)
-            runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json()
+            runobj_without_notification = deepcopy(runobj)
+            runobj_without_notification.spec.notifications = [
+                {**notification, "params": {}}
+                for notification in runobj_without_notification.spec.notifications
+            ]
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj_without_notification.to_json()
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:
