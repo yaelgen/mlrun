@@ -406,7 +406,7 @@ class BaseRuntime(ModelObj):
             logger.info("!!!!!", runobj)
             runobj_without_notification = runobj
             del runobj_without_notification.spec["notifications"]
-            logger.info("!!!!!", runobj_without_notification)
+            logger.info("!!!!!", runobj_without_notification, runobj)
             runtime_env["MLRUN_EXEC_CONFIG"] = runobj.to_json()
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
