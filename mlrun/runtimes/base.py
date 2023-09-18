@@ -404,12 +404,10 @@ class BaseRuntime(ModelObj):
             "MLRUN_DEFAULT_PROJECT": self.metadata.project or config.default_project
         }
         if runobj:
-            runobj_without_notification = deepcopy(runobj)
-            runobj_without_notification.spec.notifications = [
-                {**notification, "params": {}}
-                for notification in runobj_without_notification.spec.notifications
-            ]
-            runtime_env["MLRUN_EXEC_CONFIG"] = runobj_without_notification.to_json()
+            runobj_for_exec_config = deepcopy(runobj)
+            for notification in runobj_for_exec_config.spec.notifications:
+                notification.params = {}
+            runtime_env["MLRUN_EXEC_CONFIG"] = runobj_for_exec_config.to_json()
             if runobj.metadata.project:
                 runtime_env["MLRUN_DEFAULT_PROJECT"] = runobj.metadata.project
             if runobj.spec.verbose:
