@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from copy import deepcopy
 from typing import Optional, Union
 
 from dependency_injector import containers, providers
@@ -226,7 +225,10 @@ class ServerSideLauncher(launcher.BaseLauncher):
         This ensures the node selector is correctly set on the run
         while maintaining the runtime's integrity from system-specific project settings.
         """
-        run.spec.node_selector = deepcopy(runtime.spec.node_selector)
+        run.spec.node_selector = {
+            **runtime.spec.node_selector,
+            **run.spec.node_selector,
+        }
         if runtime._get_db():
             project = runtime._get_db().get_project(run.metadata.project)
             project_node_selector = project.spec.default_function_node_selector
